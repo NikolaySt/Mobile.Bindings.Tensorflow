@@ -1,0 +1,129 @@
+﻿@page "/image"
+@inject IJSRuntime JSRuntime
+@inject IImageProvider ImageProvider
+@inject IStyleTransferFilter styleFilter
+@inject ICartoonFilter cartoonFilter
+
+<div class="lds-ripple" style="display:@LoaderVisible;"><div></div><div></div></div>
+
+<img src="@ImageSource" id="imageTarget" style="width:100%" />
+
+<button class="btn btn-primary p-0" @onclick="(async ()=> await ImageSourceChanged())">Open Photo</button>
+
+<button class="btn btn-primary p-0" @onclick="(async ()=> await ApplyFilter(style))">Apply Style</button>
+
+<button class="btn btn-primary p-0" @onclick="(async ()=> await ApplyFilter(cartoon))">Apply Cartoon</button>
+
+<select class="form-control selectpicker" @bind="SelectedStyle">
+    <option>--select--</option>
+    @foreach (var item in styles)
+    {
+        <option value="@item.Value">@item.Key</option>
+    }
+</select>
+
+@*Web *@
+<input class="d-none" type='file' accept='image/*' @onchange='(async() =>await OpenFileChange())' id="imagePicker">
+
+@code {
+    string ImageSource { get; set; }
+    object JSObjRef;
+    string LoaderVisible = "none";
+    string style = "style";
+    string cartoon = "cartoon";
+
+    Dictionary<string, string> styles = new Dictionary<string, string> {
+        {"Summer", "vkX0vXWPSz+Yqxg/TzS3vlFzfr+8Bq2+q3hGPy0Y6j4tGOo+murfPhAEyT8YS7y/4mHBvivZIj4sGOo/AABAMvw2mz9Sc/4+YwHlPwi91T6GHTK/LdkiPSTZory+RXS+hh0yv/Pvpz9PNLe+wkV0PZrq3z+8Bq2+8+8nvy3ZIj3ARXQ+MyCWP3SPy751j8s+66i0P/TvJz+GHTI/UDS3PqDyiz8zIJa/19uGv1A0Nz4Gfg4+mupfPlt/AECIXHk/wkV0PcJFdD1auvE/UnN+P5ermL5yUAS/l6uYvinZIr69Bq0/hh2yP3OPy70q2SI/vQYtQPTvJz8QBMm/vkV0vge91b6Yq5g+dY/LPlA0Nz6/RfQ+GEs8v5rqX78q2aI+clCEPhlLPD+IXHm/vAYtv+3n+7+Xq5i+xU2gv3JQhL+Yq5g+clCEPxhLPL9QNDc+TzQ3P3WPyz4s2aI9mKsYP9fbhj+Z6t++UDS3PpermL6/RXQ/CL3VPsiM57+iMdO/B73VPj6mUL/Q01q/v0X0Pg==" },
+        {"Winter", "UDS3PlA0tz6Yqxg/MNmiPLwGLb8Gfg4+4mHBPi0Yaj88Zwk/clAEPxlLPD9jAWW/UDQ3PgV+Dr+9Bq0/LdkiPWHCHT9yUIQ+dY/LP1A0tz4+plC/dY9LPy3ZIj0Efo6+mepfvpirmD4n2SK9LNmiPYhceT9zj8u9PqZQv7xFdL0t2SI9clAEP86UE7+Yq5g+vQYtP080Nz/OlBM/dY/LPjxnCT9yUIS/LBjqvgV+jj4Efo6+TjQ3vk80tz91j0s/wkV0Pb5FdL7X24Y/DsWBP5ermL6/RfS+LdkiPSrZoj5PNDc/zpSTP040N76/RXQ/0dPaP79FdD/X24a/B73VvjDZojya6l8+BX6OPizZoj29Bq0+dI9LvwV+jr+a6l8+BH6Ovge9VT/Q01q/dI9LvuqotL+8RXS9Ktkiv79FdL8Gfg4+UnP+PpnqX74k2aK84mFBP70GrT6+RfS9KtkiP9HTWj8Ffg6/clAEP5nq377iYUE/BX6OPlh7qr/OlJO/TzS3PirZor4q2SK+dI/LPg==" },
+        {"Monet", "clCEPizZoj1Ye6o/UDS3PmMBZb/ARfQ9clCEPohceT8Ffo4/UDQ3PirZIj8HvVW/4mHBPpermL4tGGo/UDQ3PqDyiz+reEY/l6sYQOJhQT+reEa/LRjqPk40N751j0s+LBjqvirZIj87Zwm/UXN+v3WPyz5QNDc+4mHBv3WPyz6a6l8/mupfPr9FdL9Sc/4+PGcJP8JFdD2g8os/iFx5P79FdD/z76e/q3hGvyTZorya6l8+vkX0vZGj7D+a6t8+clCEPpirGD8hkq8/LRjqPvPvJ78p2SK+UDQ3Pprq3z707yc/BX6OP7wGrb5Sc34/bEjYPwV+jj8q2aK/LBhqv3JQhL4r2SI+dY9LPsBF9D0tGOo+mupfPlh7qr9PNLe+LdkiPat4Rj/iYUG/mepfvqt4xr8q2SK/B71Vv1h7qr/CRXQ9oPKLP080N78AAEAyYcIdP3JQhD6Yq5g+dY9LP8VNoD+IXHm/vQYtP75F9L2reEY/UDQ3Pj6mUL+GHbK/KtmivU80Nz7iYUG/KtkiPQ==" },
+        {"VanGogh", "LNmiPTDZojwFfo4/wEX0PVFz/r4t2SI90dNaP9HTWj+Yqxg/K9kiPgV+Dj9Rc36/dY/LPpermL60v7k/LNmiPXJQBD8ZSzw/DsUBQFA0tz4NxYG/v0X0PsJFdD1yUAS/clCEvirZoj4Efg6+4mHBvjxniT8w2aI8YwFlvy3ZIj3iYUE/UnP+PperGL8tGOo+hh0yP3JQBD/07yc/0dNaP79F9D60v7m/PqZQv3JQBD8p2SK+vkX0vfYu7z/X24Y/UnP+PivZIj60v7k/xU2gP3JQBL/iYcG+K9kiPr5F9L0ZSzw//DabP75FdL6/RXQ/iSEIQCGSrz/X24a/YwFlv75F9L2a6l8+clCEPgi91T6Yq5g+LBjqvirZor+8RXS9merfvtHTWj8sGGq/zpQTv33Wvr+Xq5i+clCEvztnib92j8s9B71VP080N78s2aI9LRjqPr0GrT7ARfQ9MyCWPyGSrz+IXHm/vQYtPyrZor7OlBM/4mHBPqDyi7+reMa/murfPge91b4q2SK/KtkiPg==" },
+        {"Night", "mupfPyTZorxPNLc/K9kiPqDyi78p2SK+dY9LP79FdD/2Lm8/PGcJPwV+Dj8sGGq/KtkiPyrZoj5hwp0/v0X0vgV+jj88Z4k/4mFBQBAEyT+IXHm/mKuYPk80t748Zwk/LBhqvyrZoj5PNDe/TzS3v9fbhj92j8s9/nXiv2HCHT+PZKU/J9kivciM57/07yc/CL3VPr9F9L6/RfQ/R+3DP1Jzfj+/RfS/BX6Ov5nqX74w2aI8UDQ3PgJ6OEAs2aI9LRjqPi3ZIj3rqLQ/YcIdP3JQhL90j8u+LdkiPb9F9D6/RfQ+2RrOP3SPS74Ffo4/l6sYQJermD/ZGs6/IZKvvwR+Dr69Bi0/AABAMi3ZIj08Zwk/CL3VPirZor9gwh2/clAEP/w2mz+reEa/dI9LvtDT2r9Rc36/YMIdv8AKA8C+RXS+fda+P/w2m78Efo6+4mFBPyjZor0HvVU/oPKLPy0Yaj/8Npu/PqZQP8BFdD6GHTI/9O8nP3SPy75PNLe/UnP+Pr0GLb991r6/KtmiPA==" }
+    };
+
+    string SelectedStyle { get; set; }
+
+    protected override Task OnInitializedAsync()
+    {
+        JSObjRef = DotNetObjectReference.Create(this);
+
+        LoadEmbbedStyles();
+
+        return base.OnInitializedAsync();
+    }
+
+    public async Task ImageSourceChanged()
+    {
+        var data = await ImageProvider.GetImageAsync();
+
+        if (data == null || data.Length == 0)
+            return;
+
+        ImageSource = $"data:image/png;base64,{Convert.ToBase64String(data)}";
+
+        StateHasChanged();
+    }
+
+    public async Task ApplyFilter(string filter)
+    {
+        LoaderVisible = "block";
+        StateHasChanged();
+
+        var data = ImageProvider.GetCurrentImage();
+
+        if (filter == style)
+        {
+            data = await styleFilter.ApplyAsync(data, SelectedStyle);
+
+            if (data == null || data.Length == 0)
+                return;
+
+            ImageSource = $"data:image/jpg;base64,{Convert.ToBase64String(data)}";
+        }
+
+        if (filter == cartoon)
+        {
+            data = await cartoonFilter.ApplyAsync(data, null);
+
+            if (data == null || data.Length == 0)
+                return;
+
+            ImageSource = $"data:image/jpg;base64,{Convert.ToBase64String(data)}";
+        }
+
+        LoaderVisible = "none";
+        StateHasChanged();
+    }
+
+    private void LoadEmbbedStyles()
+    {
+        var styles = StyleHelper.GetAvailableStyles();
+
+        this.styles.Clear();
+        var index = 0;
+        foreach (var style in styles)
+            this.styles.Add($"{index++}", style);
+    }
+
+    /// <summary>
+    /// Only for web
+    /// </summary>
+    /// <param name="result"></param>
+    [JSInvokable]
+    public void LoadedImageCallback(string result)
+    {
+        if (string.IsNullOrWhiteSpace(result))
+            return;
+
+        ImageSource = $"{result}";
+        StateHasChanged();
+    }
+
+    /// <summary>
+    /// Only for web
+    /// </summary>
+    /// <returns></returns>
+    public async Task OpenFileChange()
+    {
+        await JSRuntime.InvokeVoidAsync("imageselector.loadImage", JSObjRef, "LoadedImageCallback");
+    }
+}

@@ -1,0 +1,50 @@
+﻿@page "/heavydata"
+@inject IJSRuntime JSRuntime
+
+<button @onclick="(async ()=> await SendData())">Send/Get data</button>
+<p>@TimeStart</p>
+<p>@Transfer</p>
+
+@code{
+    private DateTime TimeStart;
+    private TimeSpan Transfer;
+    private async Task SendData()
+    {
+        var objRef = DotNetObjectReference.Create(this);
+        var data = new List<DataItem>();
+        for (var i = 0; i < 500; i++)
+        {
+            data.Add(new DataItem());
+        }
+        TimeStart = DateTime.UtcNow;
+        await JSRuntime.InvokeVoidAsync("serialize.getData", objRef, data, "GetCallback");
+    }
+
+    [JSInvokable]
+    public void GetCallback(List<DataItem> data)
+    {
+        Transfer = DateTime.UtcNow - TimeStart;
+        StateHasChanged();
+    }
+
+    public class DataItem
+    {
+        public DataItem()
+        {
+            Created = DateTime.UtcNow;
+            Updated = DateTime.UtcNow;
+            Started = DateTime.UtcNow;
+            Finished = DateTime.UtcNow;
+            Names = new List<string>();
+            for (var i = 0; i < 100; i++)
+            {
+                Names.Add($"Name {i}{i}");
+            }
+        }
+        public DateTime Created { get; set; }
+        public DateTime Updated { get; set; }
+        public DateTime Started { get; set; }
+        public DateTime Finished { get; set; }
+        public List<string> Names { get; set; }
+    }
+}
